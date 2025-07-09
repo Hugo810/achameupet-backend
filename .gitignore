@@ -1,0 +1,26 @@
+# Firebase e chaves sensíveis
+src/config/firebase.json
+src/config/firebaseAdmin.js
+src/config/firebaseConfig.js
+src/config/firebaseStorage.js
+src/services/firebaseConfig.js
+*.env
+
+# Dependências
+/node_modules
+/.expo
+
+# Configurações do sistema
+.DS_Store
+*.log
+
+# Configurações do IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Build/Output
+.expo-shared
+dist
+build
