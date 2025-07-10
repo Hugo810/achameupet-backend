@@ -11,25 +11,21 @@ function isValidUrl(str) {
 }
 
 module.exports = {
-  // Função de registro
+  // Função de registro (mantida original)
   registrar: async (req, res) => {
     try {
-      // 1. Montar dados para criação do usuário
       const userData = {
         email: req.body.email,
         password: req.body.senha,
         displayName: req.body.nome
       };
 
-      // Adicionar photoURL somente se for uma URL válida
       if (req.body.fotoPerfil && isValidUrl(req.body.fotoPerfil)) {
         userData.photoURL = req.body.fotoPerfil;
       }
 
-      // 2. Criar usuário no Firebase Authentication
       const userRecord = await admin.auth().createUser(userData);
 
-      // 3. Preparar dados para o Firestore
       const usuarioData = {
         id: userRecord.uid,
         nome: req.body.nome,
@@ -40,23 +36,20 @@ module.exports = {
         bairro: req.body.bairro,
         receberPropaganda: req.body.receberPropaganda !== undefined 
           ? req.body.receberPropaganda 
-          : true, // Valor padrão
+          : true,
         tipoUsuario: req.body.tipoUsuario,
         dataCadastro: admin.firestore.FieldValue.serverTimestamp()
       };
 
-      // 4. Salvar no Firestore
       await admin.firestore()
         .collection('usuarios')
         .doc(userRecord.uid)
         .set(usuarioData);
 
-      // 5. Definir claims customizados
       await admin.auth().setCustomUserClaims(userRecord.uid, {
         tipoUsuario: req.body.tipoUsuario
       });
 
-      // 6. Retornar resposta
       res.status(201).json({
         success: true,
         usuario: {
@@ -75,7 +68,7 @@ module.exports = {
     }
   },
 
-  // Função de login
+  // Função de login com Firebase ID Token
   login: async (req, res) => {
     try {
       const { idToken } = req.body;
@@ -87,11 +80,11 @@ module.exports = {
         });
       }
 
-      // Verifica o token enviado pelo frontend
+      // Verifica o token no Firebase Auth
       const decodedToken = await admin.auth().verifyIdToken(idToken);
       const uid = decodedToken.uid;
 
-      // Busca dados do Firestore
+      // Busca dados adicionais no Firestore
       const userDoc = await admin.firestore()
         .collection('usuarios')
         .doc(uid)
@@ -100,7 +93,7 @@ module.exports = {
       if (!userDoc.exists) {
         return res.status(404).json({
           success: false,
-          message: 'Usuário não encontrado no Firestore.'
+          message: 'Dados do usuário não encontrados.'
         });
       }
 
@@ -112,10 +105,19 @@ module.exports = {
 
     } catch (error) {
       console.error('Erro no login:', error);
+      
+      // Tratamento específico para token inválido/expirado
+      if (error.code === 'auth/id-token-expired' || error.code === 'auth/id-token-revoked') {
+        return res.status(401).json({
+          success: false,
+          message: 'Token expirado ou revogado.'
+        });
+      }
+
       res.status(401).json({
         success: false,
-        message: 'Token inválido ou expirado.',
-        error: error.message
+        message: 'Token inválido.',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }

@@ -4,16 +4,13 @@ const cors = require('cors');
 const app = express();
 
 // =============================================
-// 1. Middlewares ESSENCIAIS (DEVEM vir primeiro)
+// 1. Middlewares ESSENCIAIS
 // =============================================
-// Configuração para parsear JSON com limite aumentado
 app.use(express.json({ limit: '10mb' }));
-
-// Configuração para parsear URL encoded
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // =============================================
-// 2. Configuração de CORS para React Native + Web
+// 2. Configuração de CORS
 // =============================================
 const corsOptions = {
   origin: (origin, callback) => {
@@ -28,8 +25,7 @@ const corsOptions = {
       'https://*.achameupet.com'
     ].filter(Boolean);
 
-    const shouldAllow = 
-      !origin || 
+    const shouldAllow = !origin || 
       process.env.NODE_ENV !== 'production' ||
       allowedOrigins.some(pattern => 
         typeof pattern === 'string' 
@@ -37,26 +33,12 @@ const corsOptions = {
           : pattern.test(origin)
       );
 
-    if (shouldAllow) {
-      console.log(`✅ Origin permitida: ${origin || 'none'}`);
-      callback(null, true);
-    } else {
-      console.warn(`❌ Origin bloqueada: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
+    callback(shouldAllow ? null : new Error('Not allowed by CORS'), shouldAllow);
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'X-Requested-With',
-    'Accept',
-    'X-Access-Token'
-  ],
-  exposedHeaders: ['Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
   credentials: true,
-  maxAge: 86400,
-  optionsSuccessStatus: 204
+  maxAge: 86400
 };
 
 app.use(cors(corsOptions));
@@ -68,32 +50,33 @@ app.use((req, res, next) => {
   console.log(`\n=== Nova Requisição ===`);
   console.log(`Método: ${req.method}`);
   console.log(`Endpoint: ${req.path}`);
-  console.log(`Content-Type: ${req.headers['content-type'] || 'none'}`);
-  console.log(`Body: ${JSON.stringify(req.body) || 'vazio'}`);
+  console.log(`IP: ${req.ip}`);
+  console.log(`User-Agent: ${req.headers['user-agent']}`);
   next();
 });
 
 // ========================
-// 4. Sistema de Rotas
+// 4. Carregamento de Rotas
 // ========================
-const loadRouter = (path, router) => {
-  try {
-    if (typeof router === 'function') {
+const loadRouters = () => {
+  const routers = [
+    { path: '/api/animais', router: require('./routes/animais') },
+    { path: '/api/usuarios', router: require('./routes/usuarios') },
+    { path: '/api/auth', router: require('./routes/auth') }
+  ];
+
+  routers.forEach(({ path, router }) => {
+    try {
       app.use(path, router);
       console.log(`✓ Rota ${path} carregada`);
-    } else {
-      throw new Error(`Router ${path} não é uma função`);
+    } catch (err) {
+      console.error(`✗ Falha ao carregar rota ${path}:`, err);
+      process.exit(1);
     }
-  } catch (err) {
-    console.error(`✗ Falha ao carregar rota ${path}:`, err);
-    process.exit(1);
-  }
+  });
 };
 
-// Carrega rotas
-loadRouter('/api/animais', require('./routes/animais'));
-loadRouter('/api/usuarios', require('./routes/usuarios'));
-loadRouter('/api/auth', require('./routes/auth'));
+loadRouters();
 
 // ========================
 // 5. Health Check
@@ -103,7 +86,8 @@ app.get('/api/health', (req, res) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     service: 'AchaMeuPet Backend',
-    version: process.env.npm_package_version || '1.0.0'
+    version: process.env.npm_package_version || '1.0.0',
+    dbStatus: 'connected'
   });
 });
 
@@ -112,9 +96,24 @@ app.get('/api/health', (req, res) => {
 // ========================
 app.use((err, req, res, next) => {
   console.error('⚠️ Erro:', err.stack);
+  
+  // Erros de autenticação
+  if (err.name === 'UnauthorizedError') {
+    return res.status(401).json({ error: 'Token inválido ou expirado' });
+  }
+
+  // Erros de validação
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({
+      error: 'Dados inválidos',
+      details: err.details?.map(d => d.message) || err.message
+    });
+  }
+
+  // Erros internos
   res.status(500).json({
-    error: 'Erro interno',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Ocorreu um erro'
+    error: 'Erro interno no servidor',
+    message: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
 });
 
@@ -125,15 +124,22 @@ const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, () => {
   console.log(`\n🚀 Servidor iniciado na porta ${PORT}`);
   console.log(`🔧 Modo: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🕒 Iniciado em: ${new Date().toLocaleString()}`);
+  console.log(`🕒 ${new Date().toLocaleString()}`);
+  console.log(`📄 Documentação: http://localhost:${PORT}/api/docs`);
 });
 
 server.on('error', (error) => {
   console.error('\n💥 Falha na inicialização:');
   if (error.code === 'EADDRINUSE') {
-    console.error(`A porta ${PORT} já está em uso!`);
+    console.error(`Porta ${PORT} já está em uso!`);
+    console.error('Execute: pkill -f node (Linux/Mac) ou taskkill /f /im node.exe (Windows)');
   } else {
     console.error('Erro:', error);
   }
   process.exit(1);
+});
+
+process.on('SIGINT', () => {
+  console.log('\n🔴 Servidor encerrado');
+  process.exit(0);
 });

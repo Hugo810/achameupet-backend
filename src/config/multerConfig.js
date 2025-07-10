@@ -1,22 +1,44 @@
+// src/config/multerConfig.js
 const multer = require('multer');
-const path = require('path');
 
-const storage = multer.memoryStorage(); // Armazena na memória antes do upload
+const MAX_UPLOAD_FILES = 5;
+const UPLOAD_FILE_TYPES = ['image/jpeg', 'image/png'];
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
+// ✅ Armazena os arquivos em memória (evita erro ENOENT)
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-  if (allowedTypes.includes(file.mimetype)) {
+  if (UPLOAD_FILE_TYPES.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Tipo de arquivo inválido. Apenas JPEG, PNG e WEBP são permitidos.'), false);
+    cb(new Error('Tipo de arquivo não suportado. Use apenas JPEG ou PNG'), false);
   }
 };
 
-module.exports = multer({
+const upload = multer({
   storage,
   fileFilter,
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB
-    files: 3 // Máximo de 3 arquivos
-  }
+  limits: { fileSize: MAX_FILE_SIZE, files: MAX_UPLOAD_FILES }
 });
+
+// Middleware para tratamento de erros do multer
+const handleUploadErrors = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({
+      success: false,
+      error: err.code === 'LIMIT_FILE_SIZE'
+        ? `Tamanho máximo do arquivo: ${MAX_FILE_SIZE / 1024 / 1024}MB`
+        : `Erro no upload: ${err.message}`
+    });
+  } else if (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+  next();
+};
+
+module.exports = {
+  upload,
+  handleUploadErrors,
+  MAX_UPLOAD_FILES
+};

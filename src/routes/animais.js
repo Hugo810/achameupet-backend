@@ -1,25 +1,103 @@
+// src/routes/animais.js
 const express = require('express');
 const router = express.Router();
 const animaisController = require('../controllers/animaisController');
 const authMiddleware = require('../config/authMiddleware');
-const upload = require('../config/multerConfig');
+const { upload, handleUploadErrors, MAX_UPLOAD_FILES } = require('../config/multerConfig');
+const { validateWithPhotos } = require('../utils/validators/animalValidator');
 
-// Rotas existentes
-router.post('/', 
+// ✅ Rota de healthcheck (deve vir antes de /:id)
+router.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    service: 'Animais API',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// POST / - Cadastrar animal
+router.post('/',
   authMiddleware,
-  upload.array('fotos', 3),
+  upload.array('fotos', MAX_UPLOAD_FILES),
+  handleUploadErrors,
+  (req, res, next) => {
+    const { error } = validateWithPhotos(req.body, req.files || []);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        error: error.details.map(detail => detail.message)
+      });
+    }
+    next();
+  },
   animaisController.cadastrarAnimal
 );
 
-router.get('/proximos', 
+// GET /proximos - Buscar por localização
+router.get('/proximos',
   authMiddleware,
+  (req, res, next) => {
+    const { latitude, longitude } = req.query;
+    if (!latitude || !longitude) {
+      return res.status(400).json({
+        success: false,
+        error: 'Parâmetros latitude e longitude são obrigatórios'
+      });
+    }
+    next();
+  },
   animaisController.buscarAnimaisProximos
 );
 
-// Nova rota que estava causando o erro - VERIFIQUE:
-router.get('/:id', 
+// PUT /:id - Atualizar animal
+router.put('/:id',
   authMiddleware,
-  animaisController.buscarAnimalPorId // Certifique-se que este método existe no controller
+  (req, res, next) => {
+    if (!req.params.id || req.params.id.length !== 20) {
+      return res.status(400).json({ success: false, error: 'ID inválido' });
+    }
+    next();
+  },
+  upload.array('fotos', MAX_UPLOAD_FILES),
+  handleUploadErrors,
+  (req, res, next) => {
+    const { error } = validateWithPhotos(req.body, req.files || []);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        error: error.details.map(detail => detail.message)
+      });
+    }
+    next();
+  },
+  animaisController.atualizarAnimal
+);
+
+// GET /:id - Buscar por ID
+router.get('/:id',
+  authMiddleware,
+  (req, res, next) => {
+    if (!req.params.id || req.params.id.length !== 20) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID deve conter exatamente 20 caracteres'
+      });
+    }
+    next();
+  },
+  animaisController.buscarAnimalPorId
+);
+
+// DELETE /:id - Remover animal
+router.delete('/:id',
+  authMiddleware,
+  (req, res, next) => {
+    if (!req.params.id || req.params.id.length !== 20) {
+      return res.status(400).json({ success: false, error: 'ID inválido' });
+    }
+    next();
+  },
+  animaisController.removerAnimal
 );
 
 module.exports = router;
