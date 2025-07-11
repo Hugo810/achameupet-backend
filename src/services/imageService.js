@@ -1,32 +1,36 @@
-const admin = require('../config/firebaseAdmin');
-const { v4: uuidv4 } = require('uuid');
+const { getStorage } = require('firebase-admin/storage');
 
-class ImageService {
+const bucket = getStorage().bucket(); // Usa o bucket padrão do Firebase
+
+module.exports = {
   async uploadImage(file) {
-    const bucket = admin.storage().bucket();
-    const fileName = `animais/${Date.now()}_${file.originalname}`;
-    const fileUpload = bucket.file(fileName);
+    if (!file || !file.buffer) {
+      throw new Error('Arquivo inválido');
+    }
 
-    const uuid = uuidv4();
+    const destination = `animais/${Date.now()}-${file.originalname}`;
+    const fileUpload = bucket.file(destination);
 
+    // Cria um stream para enviar o buffer ao Firebase Storage
     const stream = fileUpload.createWriteStream({
       metadata: {
         contentType: file.mimetype,
-        metadata: {
-          firebaseStorageDownloadTokens: uuid // ✅ Token para acesso público
-        }
-      }
+      },
     });
 
     return new Promise((resolve, reject) => {
-      stream.on('error', reject);
-      stream.on('finish', () => {
-        const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(fileName)}?alt=media&token=${uuid}`;
-        resolve(publicUrl);
+      stream.on('error', (err) => reject(err));
+
+      stream.on('finish', async () => {
+        try {
+          await fileUpload.makePublic(); // Deixa o arquivo acessível publicamente
+          resolve(fileUpload.publicUrl()); // Retorna o link público da imagem
+        } catch (err) {
+          reject(err);
+        }
       });
-      stream.end(file.buffer); // ✅ Upload do buffer em memória
+
+      stream.end(file.buffer); // Envia o conteúdo do arquivo em memória
     });
   }
-}
-
-module.exports = new ImageService();
+};

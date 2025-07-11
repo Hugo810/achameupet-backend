@@ -15,18 +15,18 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 const corsOptions = {
   origin: (origin, callback) => {
     const allowedOrigins = [
-      /^exp:\/\//,
-      /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/,
-      /^http:\/\/10\.\d+\.\d+\.\d+(:\d+)?$/,
-      /^http:\/\/localhost(:\d+)?$/,
-      /^https?:\/\/[\w-]+\.localhost(:\d+)?$/,
-      process.env.FRONTEND_URL,
-      'https://achameupet.com',
-      'https://*.achameupet.com'
+      /^exp:\/\//,  // Para aplicações Expo
+      /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/, // Para IPs locais da rede
+      /^http:\/\/10\.\d+\.\d+\.\d+(:\d+)?$/,  // Para IPs locais da rede
+      /^http:\/\/localhost(:\d+)?$/,           // Para localhost
+      /^https?:\/\/[\w-]+\.localhost(:\d+)?$/, // Para locais com domínio .localhost
+      process.env.FRONTEND_URL,                // Frontend URL configurada
+      'https://achameupet.com',                // Domínio principal
+      'https://*.achameupet.com'               // Subdomínios
     ].filter(Boolean);
 
     const shouldAllow = !origin || 
-      process.env.NODE_ENV !== 'production' ||
+      process.env.NODE_ENV !== 'production' || 
       allowedOrigins.some(pattern => 
         typeof pattern === 'string' 
           ? origin === pattern 
@@ -96,21 +96,11 @@ app.get('/api/health', (req, res) => {
 // ========================
 app.use((err, req, res, next) => {
   console.error('⚠️ Erro:', err.stack);
-  
-  // Erros de autenticação
+
   if (err.name === 'UnauthorizedError') {
     return res.status(401).json({ error: 'Token inválido ou expirado' });
   }
 
-  // Erros de validação
-  if (err.name === 'ValidationError') {
-    return res.status(400).json({
-      error: 'Dados inválidos',
-      details: err.details?.map(d => d.message) || err.message
-    });
-  }
-
-  // Erros internos
   res.status(500).json({
     error: 'Erro interno no servidor',
     message: process.env.NODE_ENV === 'development' ? err.message : undefined
@@ -122,24 +112,18 @@ app.use((err, req, res, next) => {
 // ========================
 const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, () => {
-  console.log(`\n🚀 Servidor iniciado na porta ${PORT}`);
+  console.log(`🚀 Servidor iniciado na porta ${PORT}`);
   console.log(`🔧 Modo: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🕒 ${new Date().toLocaleString()}`);
   console.log(`📄 Documentação: http://localhost:${PORT}/api/docs`);
 });
 
 server.on('error', (error) => {
-  console.error('\n💥 Falha na inicialização:');
-  if (error.code === 'EADDRINUSE') {
-    console.error(`Porta ${PORT} já está em uso!`);
-    console.error('Execute: pkill -f node (Linux/Mac) ou taskkill /f /im node.exe (Windows)');
-  } else {
-    console.error('Erro:', error);
-  }
+  console.error('💥 Falha na inicialização:', error);
   process.exit(1);
 });
 
 process.on('SIGINT', () => {
-  console.log('\n🔴 Servidor encerrado');
+  console.log('🔴 Servidor encerrado');
   process.exit(0);
 });

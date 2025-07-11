@@ -1,10 +1,10 @@
 // src/routes/animais.js
 const express = require('express');
-const router = express.Router();
-const animaisController = require('../controllers/animaisController');
+const router = express.Router(); // Declare router apenas uma vez
 const authMiddleware = require('../config/authMiddleware');
 const { upload, handleUploadErrors, MAX_UPLOAD_FILES } = require('../config/multerConfig');
 const { validateWithPhotos } = require('../utils/validators/animalValidator');
+const animaisController = require('../controllers/animaisController'); // Caminho correto para importar o controlador
 
 // ✅ Rota de healthcheck (deve vir antes de /:id)
 router.get('/health', (req, res) => {
@@ -28,7 +28,7 @@ router.post('/',
         error: error.details.map(detail => detail.message)
       });
     }
-    next();
+    next(); // Chama o próximo middleware
   },
   animaisController.cadastrarAnimal
 );
@@ -44,7 +44,7 @@ router.get('/proximos',
         error: 'Parâmetros latitude e longitude são obrigatórios'
       });
     }
-    next();
+    next(); // Chama o próximo middleware
   },
   animaisController.buscarAnimaisProximos
 );
@@ -52,12 +52,6 @@ router.get('/proximos',
 // PUT /:id - Atualizar animal
 router.put('/:id',
   authMiddleware,
-  (req, res, next) => {
-    if (!req.params.id || req.params.id.length !== 20) {
-      return res.status(400).json({ success: false, error: 'ID inválido' });
-    }
-    next();
-  },
   upload.array('fotos', MAX_UPLOAD_FILES),
   handleUploadErrors,
   (req, res, next) => {
@@ -70,10 +64,11 @@ router.put('/:id',
     }
     next();
   },
-  animaisController.atualizarAnimal
+  animaisController.atualizarAnimal  // AGORA EXISTE!
 );
 
-// GET /:id - Buscar por ID
+
+// GET /:id - Buscar animal por ID
 router.get('/:id',
   authMiddleware,
   (req, res, next) => {
@@ -100,4 +95,5 @@ router.delete('/:id',
   animaisController.removerAnimal
 );
 
-module.exports = router;
+module.exports = router; // Exporte as rotas corretamente
+
