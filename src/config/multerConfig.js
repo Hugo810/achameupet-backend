@@ -1,11 +1,9 @@
-// src/config/multerConfig.js
 const multer = require('multer');
 
 const MAX_UPLOAD_FILES = 5;
 const UPLOAD_FILE_TYPES = ['image/jpeg', 'image/png'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-// ✅ Armazena os arquivos em memória (evita erro ENOENT)
 const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
@@ -22,7 +20,6 @@ const upload = multer({
   limits: { fileSize: MAX_FILE_SIZE, files: MAX_UPLOAD_FILES }
 });
 
-// Middleware para tratamento de erros do multer
 const handleUploadErrors = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     return res.status(400).json({

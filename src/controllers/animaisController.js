@@ -91,6 +91,81 @@ class AnimalController {
     }
   }
 
+ async listarAnimaisDoUsuario(req, res) {
+  try {
+    const userId = req.user?.uid;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Usuário não autenticado'
+      });
+    }
+
+    console.log('🔐 UID autenticado:', userId);
+
+    const animaisRef = admin.firestore().collection('animais');
+
+    let snapshot;
+
+    try {
+      // Tentativa com orderBy
+      snapshot = await animaisRef
+        .where('usuarioId', '==', userId)
+        .orderBy('dataPostagem', 'desc')
+        .get();
+    } catch (orderErr) {
+      console.warn('⚠️ Falha ao ordenar por dataPostagem. Tentando sem ordenação.', orderErr.message);
+
+      // Fallback: sem orderBy
+      snapshot = await animaisRef
+        .where('usuarioId', '==', userId)
+        .get();
+    }
+
+    if (snapshot.empty) {
+      console.log(`📭 Nenhum animal encontrado para UID: ${userId}`);
+      return res.status(200).json({
+        success: true,
+        data: [],
+        meta: {
+          total: 0,
+          usuarioId: userId
+        }
+      });
+    }
+
+    const animais = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        dataPostagem: data?.dataPostagem?.toDate?.()?.toISOString() || null
+      };
+    });
+
+    console.log(`✅ ${animais.length} animais encontrados para o usuário ${userId}`);
+
+    return res.status(200).json({
+      success: true,
+      data: animais,
+      meta: {
+        total: animais.length,
+        usuarioId: userId
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Erro ao listar animais do usuário:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro ao listar animais do usuário',
+      ...(process.env.NODE_ENV === 'development' && { details: error.message })
+    });
+  }
+}
+
+
   async buscarAnimaisProximos(req, res) {
     try {
       const { latitude, longitude, raio = 10, limite = 20 } = req.query;

@@ -1,6 +1,6 @@
 const { getStorage } = require('firebase-admin/storage');
 
-const bucket = getStorage().bucket(); // Usa o bucket padrão do Firebase
+const bucket = getStorage().bucket();
 
 module.exports = {
   async uploadImage(file) {
@@ -11,7 +11,6 @@ module.exports = {
     const destination = `animais/${Date.now()}-${file.originalname}`;
     const fileUpload = bucket.file(destination);
 
-    // Cria um stream para enviar o buffer ao Firebase Storage
     const stream = fileUpload.createWriteStream({
       metadata: {
         contentType: file.mimetype,
@@ -23,14 +22,16 @@ module.exports = {
 
       stream.on('finish', async () => {
         try {
-          await fileUpload.makePublic(); // Deixa o arquivo acessível publicamente
-          resolve(fileUpload.publicUrl()); // Retorna o link público da imagem
+          await fileUpload.makePublic();
+          // O método publicUrl() não existe. Use a URL pública padrão:
+          const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileUpload.name}`;
+          resolve(publicUrl);
         } catch (err) {
           reject(err);
         }
       });
 
-      stream.end(file.buffer); // Envia o conteúdo do arquivo em memória
+      stream.end(file.buffer);
     });
   }
 };

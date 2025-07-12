@@ -1,12 +1,11 @@
-// src/routes/animais.js
 const express = require('express');
-const router = express.Router(); // Declare router apenas uma vez
+const router = express.Router();
 const authMiddleware = require('../config/authMiddleware');
 const { upload, handleUploadErrors, MAX_UPLOAD_FILES } = require('../config/multerConfig');
 const { validateWithPhotos } = require('../utils/validators/animalValidator');
-const animaisController = require('../controllers/animaisController'); // Caminho correto para importar o controlador
+const animaisController = require('../controllers/animaisController');
 
-// ✅ Rota de healthcheck (deve vir antes de /:id)
+// Healthcheck (sempre primeiro)
 router.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
@@ -14,6 +13,24 @@ router.get('/health', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// Rotas fixas antes das dinâmicas
+router.get('/meus', authMiddleware, animaisController.listarAnimaisDoUsuario);
+
+router.get('/proximos',
+  authMiddleware,
+  (req, res, next) => {
+    const { latitude, longitude } = req.query;
+    if (!latitude || !longitude) {
+      return res.status(400).json({
+        success: false,
+        error: 'Parâmetros latitude e longitude são obrigatórios'
+      });
+    }
+    next();
+  },
+  animaisController.buscarAnimaisProximos
+);
 
 // POST / - Cadastrar animal
 router.post('/',
@@ -28,25 +45,9 @@ router.post('/',
         error: error.details.map(detail => detail.message)
       });
     }
-    next(); // Chama o próximo middleware
+    next();
   },
   animaisController.cadastrarAnimal
-);
-
-// GET /proximos - Buscar por localização
-router.get('/proximos',
-  authMiddleware,
-  (req, res, next) => {
-    const { latitude, longitude } = req.query;
-    if (!latitude || !longitude) {
-      return res.status(400).json({
-        success: false,
-        error: 'Parâmetros latitude e longitude são obrigatórios'
-      });
-    }
-    next(); // Chama o próximo middleware
-  },
-  animaisController.buscarAnimaisProximos
 );
 
 // PUT /:id - Atualizar animal
@@ -64,18 +65,17 @@ router.put('/:id',
     }
     next();
   },
-  animaisController.atualizarAnimal  // AGORA EXISTE!
+  animaisController.atualizarAnimal
 );
-
 
 // GET /:id - Buscar animal por ID
 router.get('/:id',
   authMiddleware,
   (req, res, next) => {
-    if (!req.params.id || req.params.id.length !== 20) {
+    if (!req.params.id || req.params.id.length !== 28) {
       return res.status(400).json({
         success: false,
-        error: 'ID deve conter exatamente 20 caracteres'
+        error: 'ID deve conter exatamente 28 caracteres'
       });
     }
     next();
@@ -87,13 +87,15 @@ router.get('/:id',
 router.delete('/:id',
   authMiddleware,
   (req, res, next) => {
-    if (!req.params.id || req.params.id.length !== 20) {
-      return res.status(400).json({ success: false, error: 'ID inválido' });
+    if (!req.params.id || req.params.id.length !== 28) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID inválido'
+      });
     }
     next();
   },
   animaisController.removerAnimal
 );
 
-module.exports = router; // Exporte as rotas corretamente
-
+module.exports = router;
